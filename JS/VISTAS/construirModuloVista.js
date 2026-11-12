@@ -1,7 +1,8 @@
 import { VistaPrueba } from "./VistaPrueba.js";
+import { VistaCompras } from "./VistaCompras.js";
 
 const registroVistas = new Map([
-  ["Prueba", VistaPrueba],
+  ["Prueba", VistaCompras],
 ]);
 
 export function construirModuloVista(nombre) {
