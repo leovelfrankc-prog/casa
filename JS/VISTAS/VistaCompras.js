@@ -1,9 +1,13 @@
-import { Vista } from "../motor/Vista.js";
-import { Contenedor } from "../motor/Contenedor.js";
-import { Componente } from "../motor/Componente.js";
-import { Boton } from "../components/Boton.js";
-import { Tabla } from "../components/Tabla.js";
-import { InputArchivo } from "../components/InputArchivo.js";
+import {
+    Vista,
+    Contenedor,
+    Componente,
+    Boton,
+    Tabla,
+    InputArchivo
+    
+} from "../REGISTRO.js";
+
 
 export class VistaCompras extends Vista {
     constructor() {
