@@ -1,0 +1,67 @@
+import { Componente } from "./Componente.js";
+
+export class InputTelefono extends Componente {
+    constructor(config = {}) {
+        super("input");
+        this.elemento.type = "tel";
+
+        this.obligatorio = Boolean(config.obligatorio);
+        this.valor = "";
+
+        if (this.obligatorio) {
+            this.elemento.required = true;
+        }
+
+        // Patrón básico opcional (números, espacios, guiones, paréntesis y +)
+        if (config.patron !== false) {
+            this.elemento.pattern = "[0-9+\\s\\-\\(\\)]+";
+            this.elemento.title = "Ingrese un número de teléfono válido";
+        }
+
+        this.aplicarConfiguracion(config);
+
+        this.elemento.addEventListener("input", () => {
+            this.valor = this.elemento.value;
+            this.guardarMemoria({
+                longitud: this.valor.length,
+                tieneValor: this.valor.length > 0
+            });
+        });
+    }
+
+    obtenerValor() {
+        return this.valor;
+    }
+
+    establecerValor(valor = "") {
+        this.valor = String(valor);
+        this.elemento.value = this.valor;
+        this.guardarMemoria({
+            longitud: this.valor.length,
+            tieneValor: this.valor.length > 0
+        });
+        return this;
+    }
+
+    limpiar() {
+        return this.establecerValor("");
+    }
+
+    esValido() {
+        const valor = this.obtenerValor().trim();
+
+        if (this.obligatorio && valor === "") {
+            return false;
+        }
+
+        // Validación simple adicional
+        if (valor !== "" && this.elemento.pattern) {
+            const regex = new RegExp(`^${this.elemento.pattern}$`);
+            if (!regex.test(valor)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
