@@ -97,6 +97,7 @@ export class VistaCompras extends Vista {
     }
 
     crearModalConTabla() {
+    try {
         this.tablaResultados = new Tabla({
             bordered: true,
             small: true,
@@ -125,16 +126,27 @@ export class VistaCompras extends Vista {
                 this.guardarGastos();
             }
         });
+
+        console.log("Modal y Tabla creados correctamente");
+    } catch (error) {
+        console.error("Error al crear Modal/Tabla:", error);
+    }
+}
+
+analizarTicket() {
+    if (!this.tablaResultados) {
+        console.error("La tabla no está creada. Llamando a crearModalConTabla...");
+        this.crearModalConTabla();
     }
 
-    analizarTicket() {
-        // Por ahora no validamos la imagen (modo desarrollo)
-        // Más adelante aquí se enviará la imagen y se recibirá el JSON
-
-        this.poblarTabla();
-        this.modal.abrir();
+    if (!this.tablaResultados) {
+        alert("No se pudo crear la tabla. Revisa la consola.");
+        return;
     }
 
+    this.poblarTabla();
+    this.modal.abrir();
+}
     poblarTabla() {
         this.tablaResultados.limpiarCuerpo();
 
