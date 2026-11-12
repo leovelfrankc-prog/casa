@@ -7,6 +7,7 @@ export { Select } from "./Select.js";
 export { Boton } from "./Boton.js";
 export { InputArchivo } from "./InputArchivo.js";
 export { InputEmail } from "./InputEmail.js";
+export { InputFecha } from "./InputFecha.js";
 export { InputPassword } from "./InputPassword.js";
 export { Modal } from "./Modal.js";
 export { Tabla } from "./Tabla.js";
