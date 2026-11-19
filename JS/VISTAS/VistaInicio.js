@@ -10,14 +10,10 @@ import {
 export class VistaInicio extends Vista {
     constructor(config = {}) {
         super(config);
-        this.usuarioActual = config.usuario || "Sujeto 1";
-        this.tablaFacturas = null;
-        this.tablaDetalle = null;
-        this.modalRevision = null;
-        this.facturaActiva = null;
+    }
 
-        // Datos de ejemplo simulando las facturas nuevas enviadas por Apps Script al iniciar sesión
-        this.facturasPendientes = [
+    _datosMockDesarrollo() {
+        return [
             {
                 idFactura: "FAC-1042",
                 tipo: "Víveres",
@@ -34,11 +30,28 @@ export class VistaInicio extends Vista {
                     { producto: "Detergente líquido", cantidad: 1, precio: 11.00, importe: 11.00, participa: true },
                     { producto: "Bolsas de basura", cantidad: 2, precio: 3.25, importe: 6.50, participa: true }
                 ]
+            },
+            {
+                idFactura: "FAC-1044",
+                tipo: "Servicios",
+                items: [
+                    { producto: "Internet fibra mensual", cantidad: 1, precio: 40.00, importe: 40.00, participa: true },
+                    { producto: "Agua potable", cantidad: 1, precio: 18.00, importe: 18.00, participa: true }
+                ]
             }
         ];
     }
 
     inicializar() {
+        this.usuarioActual = this.usuarioActual || "Sujeto 1";
+        this.tablaFacturas = null;
+        this.tablaDetalle = null;
+        this.modalRevision = null;
+        this.facturaActiva = null;
+
+        // Datos mock disponibles antes de renderizar la tabla
+        this.facturasPendientes = this._datosMockDesarrollo();
+
         this.aplicarConfiguracion({
             className: "container py-4"
         });
@@ -86,14 +99,14 @@ export class VistaInicio extends Vista {
     }
 
     cargarFacturas(facturas = []) {
-        this.facturasPendientes = facturas;
+        this.facturasPendientes = Array.isArray(facturas) ? facturas : [];
         this.renderizarFacturas();
     }
 
     renderizarFacturas() {
         this.tablaFacturas.limpiarCuerpo();
 
-        if (!this.facturasPendientes.length) {
+        if (!Array.isArray(this.facturasPendientes) || !this.facturasPendientes.length) {
             this.tablaFacturas.agregarFila([
                 "—",
                 "Sin facturas pendientes de revisión",
@@ -174,7 +187,7 @@ export class VistaInicio extends Vista {
 
     _renderizarDetalleFactura() {
         this.tablaDetalle.limpiarCuerpo();
-        if (!this.facturaActiva) return;
+        if (!this.facturaActiva || !Array.isArray(this.facturaActiva.items)) return;
 
         this.facturaActiva.items.forEach((item, index) => {
             const badgeParticipacion = new Componente("span");
@@ -206,9 +219,7 @@ export class VistaInicio extends Vista {
         if (!this.facturaActiva || !this.facturaActiva.items[index]) return;
 
         const item = this.facturaActiva.items[index];
-        // Alterna participación en la deuda colectiva de este ítem
         item.participa = !item.participa;
-
         this._renderizarDetalleFactura();
     }
 
@@ -223,9 +234,8 @@ export class VistaInicio extends Vista {
             items: this.facturaActiva.items
         };
 
-        console.log("Revisión completada para enviar a Apps Script:", resultadoRevision);
+        console.log("Revisión completada (modo desarrollo):", resultadoRevision);
 
-        // Aquí puedes enviar `resultadoRevision` vía fetch a Google Apps Script
         this.facturasPendientes = this.facturasPendientes.filter(
             f => f.idFactura !== this.facturaActiva.idFactura
         );
