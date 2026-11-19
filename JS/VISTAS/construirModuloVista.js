@@ -1,5 +1,6 @@
 import { VistaPrueba } from "./VistaPrueba.js";
 import { VistaCompras } from "./VistaCompras.js";
+import { VistaInicio } from "./VistaInicio.js";
 
 const registroVistas = new Map([
   ["Prueba", VistaPrueba],
