@@ -3,6 +3,7 @@ import { VistaCompras } from "./VistaCompras.js";
 
 const registroVistas = new Map([
   ["Prueba", VistaPrueba],
+  ["Inicio", VistaInicio],
   ["Compras", VistaCompras]
 ]);
 
