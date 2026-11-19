@@ -58,17 +58,19 @@ export class VistaCompras extends Vista {
 
         colFecha.agregar(labelFecha).agregar(this.inputFecha);
 
-        // ===== ARCHIVO =====
+        // ===== CÁMARA / ARCHIVO =====
         const colArchivo = new Contenedor("div", {
             className: "mb-4"
         });
 
         const labelArchivo = new Componente("label");
         labelArchivo.elemento.className = "form-label fw-bold";
-        labelArchivo.elemento.textContent = "Foto del Comprobante / Ticket";
+        labelArchivo.elemento.textContent = "Comprobante / Ticket";
 
         this.inputArchivo = new InputArchivo({
-            className: "form-control"
+            obligatorio: true,
+            autoIniciar: true,
+            facingMode: "environment"
         });
 
         colArchivo.agregar(labelArchivo).agregar(this.inputArchivo);
@@ -97,56 +99,80 @@ export class VistaCompras extends Vista {
     }
 
     crearModalConTabla() {
-    try {
-        this.tablaResultados = new Tabla({
-            bordered: true,
-            small: true,
-            hover: true
-        });
+        try {
+            this.tablaResultados = new Tabla({
+                bordered: true,
+                small: true,
+                hover: true
+            });
 
-        this.tablaResultados.establecerEncabezados([
-            "Producto",
-            "Cantidad",
-            "Precio",
-            "Importe",
-            "Acciones"
-        ]);
+            this.tablaResultados.establecerEncabezados([
+                "Producto",
+                "Cantidad",
+                "Precio",
+                "Importe",
+                "Acciones"
+            ]);
 
-        this.modal = new Modal({
-            titulo: "✨ Validación de Gastos Extraídos"
-        });
+            this.modal = new Modal({
+                titulo: "✨ Validación de Gastos Extraídos"
+            });
 
-        this.modal.establecerTamaño("lg");
-        this.modal.establecerCuerpo(this.tablaResultados);
+            this.modal.establecerTamaño("lg");
+            this.modal.establecerCuerpo(this.tablaResultados);
 
-        this.modal.agregarBotonesAceptarCancelar({
-            textoAceptar: "💾 Guardar",
-            textoCancelar: "Cancelar",
-            onAceptar: () => {
-                this.guardarGastos();
-            }
-        });
+            this.modal.agregarBotonesAceptarCancelar({
+                textoAceptar: "💾 Guardar",
+                textoCancelar: "Cancelar",
+                onAceptar: () => {
+                    this.guardarGastos();
+                }
+            });
 
-        console.log("Modal y Tabla creados correctamente");
-    } catch (error) {
-        console.error("Error al crear Modal/Tabla:", error);
-    }
-}
-
-analizarTicket() {
-    if (!this.tablaResultados) {
-        console.error("La tabla no está creada. Llamando a crearModalConTabla...");
-        this.crearModalConTabla();
+            console.log("Modal y Tabla creados correctamente");
+        } catch (error) {
+            console.error("Error al crear Modal/Tabla:", error);
+        }
     }
 
-    if (!this.tablaResultados) {
-        alert("No se pudo crear la tabla. Revisa la consola.");
-        return;
+    async analizarTicket() {
+        const imagenBase64 = this.inputArchivo.obtenerBase64();
+        const fechaCompra = this.inputFecha.obtenerValor
+            ? this.inputFecha.obtenerValor()
+            : this.inputFecha.elemento.value;
+
+        if (!imagenBase64) {
+            alert("Captura una foto del ticket o selecciona un archivo antes de analizar.");
+            return;
+        }
+
+        if (!this.tablaResultados) {
+            console.error("La tabla no está creada. Llamando a crearModalConTabla...");
+            this.crearModalConTabla();
+        }
+
+        if (!this.tablaResultados) {
+            alert("No se pudo crear la tabla. Revisa la consola.");
+            return;
+        }
+
+        const payload = {
+            accion: "analizarTicket",
+            fecha: fechaCompra,
+            nombreArchivo: this.inputArchivo.obtenerNombre(),
+            imagen: imagenBase64
+        };
+
+        console.log("Payload listo para enviar a Apps Script:", {
+            ...payload,
+            imagen: `${imagenBase64.slice(0, 40)}... (${imagenBase64.length} chars)`
+        });
+
+        // Aquí irá tu fetch real a Google Apps Script usando `payload`
+        this.poblarTabla();
+        this.modal.abrir();
     }
 
-    this.poblarTabla();
-    this.modal.abrir();
-}
     poblarTabla() {
         this.tablaResultados.limpiarCuerpo();
 
@@ -211,6 +237,15 @@ analizarTicket() {
     guardarGastos() {
         console.log("Datos a guardar:", this.datosTicket);
         alert("Gastos guardados correctamente (simulado)");
+        this.inputArchivo.limpiar();
         this.modal.cerrar();
+    }
+
+    destruir() {
+        if (this.inputArchivo) {
+            this.inputArchivo.destruir();
+            this.inputArchivo = null;
+        }
+        return super.destruir();
     }
 }
