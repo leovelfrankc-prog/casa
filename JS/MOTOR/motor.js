@@ -124,8 +124,8 @@ export class Motor {
 
 const motor = new Motor();
 
-motor.guardarVista("Compras");
+motor.guardarVista("Inicio");
 
-motor.cambiarVista("Compras");
+motor.cambiarVista("Inicio");
 
 window.motor = motor;
