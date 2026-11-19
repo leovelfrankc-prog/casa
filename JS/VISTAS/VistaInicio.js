@@ -12,31 +12,31 @@ export class VistaInicio extends Vista {
         super(config);
     }
 
-    _datosMockDesarrollo() {
+    _obtenerFacturasDesarrollo() {
         return [
             {
-                idFactura: "FAC-1042",
+                idFactura: "FAC-2026-01",
                 tipo: "Víveres",
                 items: [
-                    { producto: "Leche entera (2L)", cantidad: 2, precio: 2.40, importe: 4.80, participa: true },
-                    { producto: "Café molido", cantidad: 1, precio: 7.50, importe: 7.50, participa: true },
-                    { producto: "Cerveza pack x6", cantidad: 1, precio: 9.00, importe: 9.00, participa: false }
+                    { producto: "Leche entera (2L)", cantidad: 2, precio: 2.50, importe: 5.00, participa: true },
+                    { producto: "Huevos docena", cantidad: 1, precio: 4.20, importe: 4.20, participa: true },
+                    { producto: "Refresco cola 2L", cantidad: 2, precio: 2.00, importe: 4.00, participa: false }
                 ]
             },
             {
-                idFactura: "FAC-1043",
+                idFactura: "FAC-2026-02",
                 tipo: "Limpieza",
                 items: [
-                    { producto: "Detergente líquido", cantidad: 1, precio: 11.00, importe: 11.00, participa: true },
-                    { producto: "Bolsas de basura", cantidad: 2, precio: 3.25, importe: 6.50, participa: true }
+                    { producto: "Jabón multiusos", cantidad: 1, precio: 6.00, importe: 6.00, participa: true },
+                    { producto: "Esponjas pack x3", cantidad: 1, precio: 3.00, importe: 3.00, participa: true }
                 ]
             },
             {
-                idFactura: "FAC-1044",
+                idFactura: "FAC-2026-03",
                 tipo: "Servicios",
                 items: [
-                    { producto: "Internet fibra mensual", cantidad: 1, precio: 40.00, importe: 40.00, participa: true },
-                    { producto: "Agua potable", cantidad: 1, precio: 18.00, importe: 18.00, participa: true }
+                    { producto: "Internet hogar", cantidad: 1, precio: 40.00, importe: 40.00, participa: true },
+                    { producto: "Gas cocina", cantidad: 1, precio: 24.00, importe: 24.00, participa: true }
                 ]
             }
         ];
@@ -48,9 +48,7 @@ export class VistaInicio extends Vista {
         this.tablaDetalle = null;
         this.modalRevision = null;
         this.facturaActiva = null;
-
-        // Datos mock disponibles antes de renderizar la tabla
-        this.facturasPendientes = this._datosMockDesarrollo();
+        this.facturasPendientes = this._obtenerFacturasDesarrollo();
 
         this.aplicarConfiguracion({
             className: "container py-4"
@@ -70,7 +68,7 @@ export class VistaInicio extends Vista {
 
         const badgeUsuario = new Componente("span");
         badgeUsuario.elemento.className = "badge bg-dark fs-6";
-        badgeUsuario.elemento.textContent = `Sesión: ${this.usuarioActual}`;
+        badgeUsuario.elemento.textContent = `Sesión: ${this.usuarioActual} (Dev)`;
 
         encabezado.agregar(titulo).agregar(badgeUsuario);
 
@@ -99,21 +97,21 @@ export class VistaInicio extends Vista {
     }
 
     cargarFacturas(facturas = []) {
-        this.facturasPendientes = Array.isArray(facturas) ? facturas : [];
+        this.facturasPendientes = Array.isArray(facturas) && facturas.length
+            ? facturas
+            : this._obtenerFacturasDesarrollo();
         this.renderizarFacturas();
     }
 
     renderizarFacturas() {
-        this.tablaFacturas.limpiarCuerpo();
+        if (!this.tablaFacturas) return;
 
-        if (!Array.isArray(this.facturasPendientes) || !this.facturasPendientes.length) {
-            this.tablaFacturas.agregarFila([
-                "—",
-                "Sin facturas pendientes de revisión",
-                ""
-            ]);
-            return;
+        // Respaldo de desarrollo: nunca dejar facturasPendientes como undefined
+        if (!Array.isArray(this.facturasPendientes) || this.facturasPendientes.length === 0) {
+            this.facturasPendientes = this._obtenerFacturasDesarrollo();
         }
+
+        this.tablaFacturas.limpiarCuerpo();
 
         this.facturasPendientes.forEach((factura) => {
             const btnRevisar = new Boton({
@@ -186,10 +184,12 @@ export class VistaInicio extends Vista {
     }
 
     _renderizarDetalleFactura() {
-        this.tablaDetalle.limpiarCuerpo();
-        if (!this.facturaActiva || !Array.isArray(this.facturaActiva.items)) return;
+        if (!this.tablaDetalle || !this.facturaActiva) return;
 
-        this.facturaActiva.items.forEach((item, index) => {
+        this.tablaDetalle.limpiarCuerpo();
+        const items = Array.isArray(this.facturaActiva.items) ? this.facturaActiva.items : [];
+
+        items.forEach((item, index) => {
             const badgeParticipacion = new Componente("span");
             badgeParticipacion.elemento.className = item.participa
                 ? "badge bg-success"
@@ -216,9 +216,10 @@ export class VistaInicio extends Vista {
     }
 
     editarParticipacionItem(index) {
-        if (!this.facturaActiva || !this.facturaActiva.items[index]) return;
-
+        if (!this.facturaActiva || !Array.isArray(this.facturaActiva.items)) return;
         const item = this.facturaActiva.items[index];
+        if (!item) return;
+
         item.participa = !item.participa;
         this._renderizarDetalleFactura();
     }
