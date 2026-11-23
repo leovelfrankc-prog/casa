@@ -1,44 +1,49 @@
-import {
-    Vista,
-    Formulario,
-    InputArchivo
-    
-} from "../REGISTRO.js";
+import { Vista } from "../REGISTRO.js";
+
 export class VistaPrueba extends Vista {
     inicializar() {
-        // Configuración de la vista principal con clases de diseño
         this.aplicarConfiguracion({
-            className: "container vh-100 d-flex flex-column justify-content-center align-items-center gap-4"
+            className: "container vh-100 d-flex flex-column justify-content-center align-items-center gap-3"
         });
 
-        // Crear instancia del input de archivo
-        const inputArchivo = new InputArchivo({
-            obligatorio: true,
-            className: "form-control"
-        });
+        const botonPrueba = document.createElement("button");
+        botonPrueba.type = "button";
+        botonPrueba.className = "btn btn-primary";
+        botonPrueba.textContent = "Probar fetch";
 
-        // Crear instancia del formulario con su callback onSubmit
-        const formulario = new Formulario({
-            textoBoton: "Ver contenido del archivo",
-            className: "card p-4 shadow-sm w-50 d-flex flex-column gap-3",
-            onSubmit: (datos) => {
-                const base64 = datos.archivo;
+        const salida = document.createElement("pre");
+        salida.className = "bg-light border rounded p-3 w-75 overflow-auto";
+        salida.style.maxHeight = "300px";
+        salida.textContent = "Listo para probar...";
 
-                if (!base64) {
-                    alert("No se ha seleccionado ningún archivo.");
-                    return;
-                }
+        botonPrueba.addEventListener("click", async () => {
+            if (!window.motor || typeof window.motor.enviarAccion !== "function") {
+                const msg = "No se encontró window.motor.enviarAccion";
+                console.error(msg);
+                salida.textContent = msg;
+                return;
+            }
 
-                // Alerta con el contenido en Base64 almacenado en inputArchivo
-                alert(`Contenido almacenado (Base64):\n\n${base64.substring(0, 100)}...`);
-                console.log("Contenido completo:", base64);
+            botonPrueba.disabled = true;
+            salida.textContent = "Consultando Apps Script...";
+
+            try {
+                const resultado = await window.motor.enviarAccion(
+                    "facturasPendientesUsuario",
+                    { idUsuario: "USR-0001" }
+                );
+
+                console.log("Respuesta de Apps Script:", resultado);
+                salida.textContent = JSON.stringify(resultado, null, 2);
+            } catch (error) {
+                console.error("Error en fetch de prueba:", error);
+                salida.textContent = `Error: ${error.message || error}`;
+            } finally {
+                botonPrueba.disabled = false;
             }
         });
 
-        // Registrar el input dentro del formulario con la clave "archivo"
-        formulario.registrar("archivo", inputArchivo);
-
-        // Agregar el formulario directamente a la vista
-        this.agregar(formulario);
+        this.elemento.appendChild(botonPrueba);
+        this.elemento.appendChild(salida);
     }
 }
