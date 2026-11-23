@@ -168,8 +168,8 @@ export class Motor {
 
 const motor = new Motor();
 
-motor.guardarVista("Inicio");
+motor.guardarVista("Prueba");
 
-motor.cambiarVista("Inicio");
+motor.cambiarVista("Prueba");
 
 window.motor = motor;
