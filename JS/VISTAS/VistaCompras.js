@@ -14,15 +14,11 @@ export class VistaCompras extends Vista {
         super();
         this.inputArchivo = null;
         this.inputFecha = null;
+        this.btnAnalizar = null;
         this.tablaResultados = null;
         this.modal = null;
-
-        // Datos estáticos de prueba (simulando respuesta de la IA)
-        this.datosTicket = [
-            { producto: "Aceite de Oliva", cantidad: 1, precio: 8.50, importe: 8.50 },
-            { producto: "Arroz (Bolsa 1kg)", cantidad: 2, precio: 2.00, importe: 4.00 },
-            { producto: "Leche Entera", cantidad: 3, precio: 1.20, importe: 3.60 }
-        ];
+        this.datosTicket = [];
+        this.metadatosFactura = {};
     }
 
     inicializar() {
@@ -53,7 +49,6 @@ export class VistaCompras extends Vista {
             obligatorio: true
         });
 
-        // Fecha de hoy por defecto
         this.inputFecha.establecerValor(new Date().toISOString().split("T")[0]);
 
         colFecha.agregar(labelFecha).agregar(this.inputFecha);
@@ -76,25 +71,23 @@ export class VistaCompras extends Vista {
         colArchivo.agregar(labelArchivo).agregar(this.inputArchivo);
 
         // ===== BOTÓN =====
-        const btnAnalizar = new Boton({
+        this.btnAnalizar = new Boton({
             texto: "🤖 Analizar Ticket",
             className: "btn btn-dark w-100 py-2 fw-bold"
         });
 
-        btnAnalizar.elemento.addEventListener("click", () => {
+        this.btnAnalizar.elemento.addEventListener("click", () => {
             this.analizarTicket();
         });
 
-        // Armar tarjeta
         card
             .agregar(titulo)
             .agregar(colFecha)
             .agregar(colArchivo)
-            .agregar(btnAnalizar);
+            .agregar(this.btnAnalizar);
 
         this.agregar(card);
 
-        // Crear modal + tabla
         this.crearModalConTabla();
     }
 
@@ -135,42 +128,138 @@ export class VistaCompras extends Vista {
         }
     }
 
+    /**
+     * Obtiene el contenido en Base64 desde InputArchivo (o leyendo el File si hace falta).
+     */
+    async obtenerImagenBase64() {
+        if (!this.inputArchivo) return "";
+
+        if (typeof this.inputArchivo.obtenerBase64 === "function") {
+            const actual = this.inputArchivo.obtenerBase64();
+            if (actual) return actual;
+        }
+
+        const archivo =
+            (typeof this.inputArchivo.obtenerArchivo === "function" &&
+                this.inputArchivo.obtenerArchivo()) ||
+            this.inputArchivo.elemento?.files?.[0] ||
+            null;
+
+        if (!archivo) return "";
+
+        return await new Promise((resolve, reject) => {
+            const lector = new FileReader();
+            lector.onload = () => resolve(String(lector.result || ""));
+            lector.onerror = () => reject(new Error("No se pudo convertir la imagen a Base64."));
+            lector.readAsDataURL(archivo);
+        });
+    }
+
+    /**
+     * Normaliza la respuesta JSON que devuelva el backend/IA a un arreglo de ítems
+     * { producto, cantidad, precio, importe }.
+     */
+    normalizarItemsFactura(respuesta) {
+        let data = respuesta;
+
+        if (typeof data === "string") {
+            const limpio = data.replace(/```json|```/gi, "").trim();
+            data = JSON.parse(limpio);
+        }
+
+        const rawItems = Array.isArray(data)
+            ? data
+            : Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.productos)
+            ? data.productos
+            : Array.isArray(data?.detalle)
+            ? data.detalle
+            : [];
+
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+            const { items, productos, detalle, ...resto } = data;
+            this.metadatosFactura = resto;
+        } else {
+            this.metadatosFactura = {};
+        }
+
+        return rawItems.map(item => {
+            const cantidad = Number(item.cantidad ?? 1) || 1;
+            const precio = Number(item.precio ?? item.precioUnitario ?? 0) || 0;
+            const importeCalculado =
+                item.importe !== undefined && item.importe !== null
+                    ? Number(item.importe)
+                    : cantidad * precio;
+
+            return {
+                producto: String(item.producto ?? item.nombre ?? item.descripcion ?? "").trim(),
+                cantidad,
+                precio,
+                importe: Math.round(importeCalculado * 100) / 100
+            };
+        });
+    }
+
     async analizarTicket() {
-        const imagenBase64 = this.inputArchivo.obtenerBase64();
         const fechaCompra = this.inputFecha.obtenerValor
             ? this.inputFecha.obtenerValor()
             : this.inputFecha.elemento.value;
+
+        const nombreArchivo =
+            typeof this.inputArchivo.obtenerNombre === "function"
+                ? this.inputArchivo.obtenerNombre()
+                : this.inputArchivo.elemento?.files?.[0]?.name || "ticket.jpg";
+
+        let imagenBase64 = "";
+        try {
+            imagenBase64 = await this.obtenerImagenBase64();
+        } catch (err) {
+            alert(err.message);
+            return;
+        }
 
         if (!imagenBase64) {
             alert("Captura una foto del ticket o selecciona un archivo antes de analizar.");
             return;
         }
 
-        if (!this.tablaResultados) {
-            console.error("La tabla no está creada. Llamando a crearModalConTabla...");
-            this.crearModalConTabla();
-        }
-
-        if (!this.tablaResultados) {
-            alert("No se pudo crear la tabla. Revisa la consola.");
+        if (!window.motor || typeof window.motor.enviarAccion !== "function") {
+            alert("No se encontró window.motor.enviarAccion para comunicarse con el backend.");
             return;
         }
 
-        const payload = {
-            accion: "analizarTicket",
-            fecha: fechaCompra,
-            nombreArchivo: this.inputArchivo.obtenerNombre(),
-            imagen: imagenBase64
-        };
+        if (!this.tablaResultados) {
+            this.crearModalConTabla();
+        }
 
-        console.log("Payload listo para enviar a Apps Script:", {
-            ...payload,
-            imagen: `${imagenBase64.slice(0, 40)}... (${imagenBase64.length} chars)`
-        });
+        const textoOriginalBtn = this.btnAnalizar.elemento.textContent;
+        this.btnAnalizar.elemento.disabled = true;
+        this.btnAnalizar.elemento.textContent = "⏳ Analizando con IA...";
 
-        // Aquí irá tu fetch real a Google Apps Script usando `payload`
-        this.poblarTabla();
-        this.modal.abrir();
+        try {
+            const respuestaIA = await window.motor.enviarAccion("analizarTicket", {
+                fecha: fechaCompra,
+                nombreArchivo,
+                imagenBase64
+            });
+
+            this.datosTicket = this.normalizarItemsFactura(respuestaIA);
+
+            if (!this.datosTicket.length) {
+                alert("La IA no devolvió productos en el ticket. Revisa la imagen o inténtalo de nuevo.");
+                return;
+            }
+
+            this.poblarTabla();
+            this.modal.abrir();
+        } catch (error) {
+            console.error("Error al analizar ticket:", error);
+            alert(`Error al analizar el ticket: ${error.message || error}`);
+        } finally {
+            this.btnAnalizar.elemento.disabled = false;
+            this.btnAnalizar.elemento.textContent = textoOriginalBtn;
+        }
     }
 
     poblarTabla() {
@@ -196,7 +285,6 @@ export class VistaCompras extends Vista {
                 this.poblarTabla();
             });
 
-            // Contenedor de botones
             const acciones = new Contenedor("div", {
                 className: "d-flex gap-1"
             });
@@ -224,21 +312,54 @@ export class VistaCompras extends Vista {
         const nuevoPrecio = prompt("Precio:", item.precio);
         if (nuevoPrecio === null) return;
 
-        // Actualizar datos
-        item.producto = nuevoProducto;
-        item.cantidad = Number(nuevaCantidad);
-        item.precio = Number(nuevoPrecio);
-        item.importe = item.cantidad * item.precio;
+        const cantidadNum = Number(nuevaCantidad);
+        const precioNum = Number(nuevoPrecio);
 
-        // Volver a pintar la tabla
+        item.producto = nuevoProducto.trim();
+        item.cantidad = Number.isFinite(cantidadNum) ? cantidadNum : item.cantidad;
+        item.precio = Number.isFinite(precioNum) ? precioNum : item.precio;
+        item.importe = Math.round(item.cantidad * item.precio * 100) / 100;
+
         this.poblarTabla();
     }
 
-    guardarGastos() {
-        console.log("Datos a guardar:", this.datosTicket);
-        alert("Gastos guardados correctamente (simulado)");
-        this.inputArchivo.limpiar();
-        this.modal.cerrar();
+    async guardarGastos() {
+        if (!this.datosTicket.length) {
+            alert("No hay gastos para guardar.");
+            return;
+        }
+
+        const fechaCompra = this.inputFecha.obtenerValor
+            ? this.inputFecha.obtenerValor()
+            : this.inputFecha.elemento.value;
+
+        const totalCalculado =
+            Math.round(
+                this.datosTicket.reduce((acc, item) => acc + (Number(item.importe) || 0), 0) * 100
+            ) / 100;
+
+        const cargaGuardado = {
+            fecha: fechaCompra,
+            importeTotal: totalCalculado,
+            metadatos: this.metadatosFactura,
+            items: this.datosTicket
+        };
+
+        try {
+            if (window.motor && typeof window.motor.enviarAccion === "function") {
+                await window.motor.enviarAccion("guardarCompraValidada", cargaGuardado);
+            }
+
+            console.log("Gastos guardados:", cargaGuardado);
+            alert("Gastos guardados correctamente.");
+            this.datosTicket = [];
+            this.metadatosFactura = {};
+            this.inputArchivo.limpiar();
+            this.modal.cerrar();
+        } catch (error) {
+            console.error("Error al guardar gastos:", error);
+            alert(`No se pudieron guardar los gastos: ${error.message || error}`);
+        }
     }
 
     destruir() {
