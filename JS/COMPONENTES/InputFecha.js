@@ -24,7 +24,7 @@ export class InputFecha extends Componente {
     }
 
     obtenerValor() {
-        return this.valor;
+        return this.elemento ? this.elemento.value : this.valor;
     }
 
     establecerValor(valor = "") {
