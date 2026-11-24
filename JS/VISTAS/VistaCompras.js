@@ -102,11 +102,13 @@ export class VistaCompras extends Vista {
     }
 
     async obtenerImagenBase64() {
+        // Primero intenta obtener el Base64 ya procesado por InputArchivo
         if (this.inputArchivo && typeof this.inputArchivo.obtenerBase64 === "function") {
             const b64 = this.inputArchivo.obtenerBase64();
             if (b64) return b64;
         }
 
+        // Fallback: intenta leer el archivo desde el input nativo
         const inputFileEl =
             this.inputArchivo?.inputFallback ||
             this.elemento?.querySelector?.('input[type="file"]') ||
@@ -250,9 +252,13 @@ export class VistaCompras extends Vista {
             this.crearModalConTabla();
         }
 
-        const textoOriginalBtn = this.btnAnalizar.elemento.textContent;
-        this.btnAnalizar.elemento.disabled = true;
-        this.btnAnalizar.elemento.textContent = "⏳ Consultando IA...";
+        // Guardamos el texto original de forma segura
+        const textoOriginalBtn = this.btnAnalizar?.elemento?.textContent || "🤖 Analizar Ticket";
+
+        if (this.btnAnalizar?.elemento) {
+            this.btnAnalizar.elemento.disabled = true;
+            this.btnAnalizar.elemento.textContent = "⏳ Consultando IA...";
+        }
 
         try {
             const respuestaIA = await window.motor.enviarAccion("analizarTicket", {
@@ -269,17 +275,22 @@ export class VistaCompras extends Vista {
             }
 
             this.poblarTabla();
-            this.modal.abrir();
+            this.modal?.abrir();
         } catch (error) {
             console.error("Error al consultar IA para analizar ticket:", error);
             alert(`Error al analizar el ticket: ${error.message || error}`);
         } finally {
-            this.btnAnalizar.elemento.disabled = false;
-            this.btnAnalizar.elemento.textContent = textoOriginalBtn;
+            // Restauración segura del botón
+            if (this.btnAnalizar?.elemento) {
+                this.btnAnalizar.elemento.disabled = false;
+                this.btnAnalizar.elemento.textContent = textoOriginalBtn;
+            }
         }
     }
 
     poblarTabla() {
+        if (!this.tablaResultados) return;
+
         this.tablaResultados.limpiarCuerpo();
 
         this.datosTicket.forEach((item, index) => {
@@ -319,6 +330,7 @@ export class VistaCompras extends Vista {
 
     editarFila(index) {
         const item = this.datosTicket[index];
+        if (!item) return;
 
         const nuevoProducto = prompt("Producto:", item.producto);
         if (nuevoProducto === null) return;
@@ -366,12 +378,15 @@ export class VistaCompras extends Vista {
 
             console.log("Gastos guardados:", cargaGuardado);
             alert("Gastos guardados correctamente.");
+            
             this.datosTicket = [];
             this.metadatosFactura = {};
+            
             if (this.inputArchivo && typeof this.inputArchivo.limpiar === "function") {
                 this.inputArchivo.limpiar();
             }
-            this.modal.cerrar();
+            
+            this.modal?.cerrar();
         } catch (error) {
             console.error("Error al guardar gastos:", error);
             alert(`No se pudieron guardar los gastos: ${error.message || error}`);
