@@ -3,12 +3,11 @@ import { Componente } from "./Componente.js";
 export class InputArchivo extends Componente {
 
     constructor(config = {}) {
-        // Contenedor raíz para albergar <video>, <canvas>, vista previa y controles
         super("div");
 
         this.obligatorio = Boolean(config.obligatorio);
-        this.autoIniciar = config.autoIniciar !== false; // Activa la cámara al montarse si está disponible
-        this.facingMode = config.facingMode || "environment"; // Cámara trasera por defecto
+        this.autoIniciar = config.autoIniciar !== false;
+        this.facingMode = config.facingMode || "environment";
         this.accept = config.accept || "image/*";
         this.maxSize = config.maxSize || 5 * 1024 * 1024;
 
@@ -26,8 +25,8 @@ export class InputArchivo extends Componente {
         if (this.autoIniciar) {
             requestAnimationFrame(() => this.iniciarCamara());
         } else {
-            this.btnCapturar.classList.add("d-none");
             this.video.classList.add("d-none");
+            this.btnCapturar.classList.add("d-none");
         }
     }
 
@@ -70,7 +69,6 @@ export class InputArchivo extends Componente {
 
         wrapper.append(this.video, this.previewImg, this.canvas, this.inputFallback);
 
-        // Barra de acciones (Capturar / Tomar otra / Galería o Archivo)
         const controles = document.createElement("div");
         controles.className = "d-flex gap-2 w-100 justify-content-center flex-wrap";
 
@@ -225,12 +223,9 @@ export class InputArchivo extends Componente {
     convertirABase64(archivo) {
         return new Promise((resolve, reject) => {
             const lector = new FileReader();
-            lector.onload = () => resolve(lector.result);
-            lector.onerror = reject;
-
-            setTimeout(() => {
-                lector.readAsDataURL(archivo);
-            }, 0);
+            lector.onload = () => resolve(String(lector.result || ""));
+            lector.onerror = () => reject(new Error("Error al leer el archivo como Base64."));
+            lector.readAsDataURL(archivo);
         });
     }
 
