@@ -3,12 +3,13 @@ import { Componente } from "./Componente.js";
 export class InputArchivo extends Componente {
 
     constructor(config = {}) {
-        // Usamos un contenedor como raíz para albergar <video>, <canvas>, vista previa y controles
+        // Contenedor raíz para albergar <video>, <canvas>, vista previa y controles
         super("div");
 
         this.obligatorio = Boolean(config.obligatorio);
-        this.autoIniciar = config.autoIniciar !== false; // Activa la cámara al montarse
+        this.autoIniciar = config.autoIniciar !== false; // Activa la cámara al montarse si está disponible
         this.facingMode = config.facingMode || "environment"; // Cámara trasera por defecto
+        this.accept = config.accept || "image/*";
         this.maxSize = config.maxSize || 5 * 1024 * 1024;
 
         this.archivo = null;
@@ -23,14 +24,17 @@ export class InputArchivo extends Componente {
         this._construirUI();
 
         if (this.autoIniciar) {
-            // Esperar a que el elemento esté en el DOM antes de iniciar el stream
             requestAnimationFrame(() => this.iniciarCamara());
+        } else {
+            this.btnCapturar.classList.add("d-none");
+            this.video.classList.add("d-none");
         }
     }
 
     _construirUI() {
         const wrapper = document.createElement("div");
         wrapper.className = "position-relative w-100 rounded overflow-hidden bg-dark";
+        wrapper.style.minHeight = "120px";
         wrapper.style.maxHeight = "360px";
 
         this.video = document.createElement("video");
@@ -40,29 +44,33 @@ export class InputArchivo extends Componente {
         this.video.muted = true;
 
         this.previewImg = document.createElement("img");
-        this.previewImg.className = "w-100 h-100 object-fit-cover d-none";
+        this.previewImg.className = "w-100 h-100 object-fit-contain d-none";
+        this.previewImg.style.maxHeight = "360px";
         this.previewImg.alt = "Vista previa del comprobante";
 
         this.canvas = document.createElement("canvas");
         this.canvas.className = "d-none";
 
-        // Input oculto de respaldo por si falla la cámara o se prefiere archivo
+        // Input oculto para galería / archivo (sin 'capture' para permitir elegir de la galería)
         this.inputFallback = document.createElement("input");
         this.inputFallback.type = "file";
-        this.inputFallback.accept = "image/*";
-        this.inputFallback.setAttribute("capture", this.facingMode);
+        this.inputFallback.accept = this.accept;
         this.inputFallback.className = "d-none";
 
         this.inputFallback.addEventListener("change", async () => {
-            const file = this.inputFallback.files[0] || null;
-            if (file) {
-                await this._procesarBlobOArchivo(file);
+            const file = this.inputFallback.files?.[0] || null;
+            if (!file) return;
+
+            await this._procesarBlobOArchivo(file);
+
+            if (this.base64) {
+                this._mostrarVistaPrevia(this.base64);
             }
         });
 
         wrapper.append(this.video, this.previewImg, this.canvas, this.inputFallback);
 
-        // Barra de acciones (Capturar / Tomar otra / Subir archivo)
+        // Barra de acciones (Capturar / Tomar otra / Galería o Archivo)
         const controles = document.createElement("div");
         controles.className = "d-flex gap-2 w-100 justify-content-center flex-wrap";
 
@@ -82,16 +90,28 @@ export class InputArchivo extends Componente {
         this.btnArchivo.type = "button";
         this.btnArchivo.className = "btn btn-outline-dark btn-sm";
         this.btnArchivo.textContent = "📁 Galería / Archivo";
-        this.btnArchivo.addEventListener("click", () => this.inputFallback.click());
+        this.btnArchivo.addEventListener("click", () => {
+            this.inputFallback.value = "";
+            this.inputFallback.click();
+        });
 
         controles.append(this.btnCapturar, this.btnRepetir, this.btnArchivo);
 
         this.elemento.append(wrapper, controles);
     }
 
+    _mostrarVistaPrevia(src) {
+        this.detenerCamara();
+        this.previewImg.src = src;
+        this.previewImg.classList.remove("d-none");
+        this.video.classList.add("d-none");
+        this.btnCapturar.classList.add("d-none");
+        this.btnRepetir.classList.remove("d-none");
+    }
+
     async iniciarCamara() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            this.inputFallback.classList.remove("d-none");
+            this.video.classList.add("d-none");
             this.btnCapturar.classList.add("d-none");
             return;
         }
@@ -116,8 +136,8 @@ export class InputArchivo extends Componente {
 
             await this.video.play();
         } catch (error) {
-            console.warn("No se pudo abrir la cámara en vivo, usando respaldo de archivo:", error);
-            this.inputFallback.classList.remove("d-none");
+            console.warn("No se pudo abrir la cámara en vivo, se mantiene selección de archivo:", error);
+            this.video.classList.add("d-none");
             this.btnCapturar.classList.add("d-none");
         }
     }
@@ -143,21 +163,25 @@ export class InputArchivo extends Componente {
             );
 
             await this._procesarBlobOArchivo(archivoCapturado);
-            this.detenerCamara();
 
-            // Mostrar la foto fija capturada en lugar del video en vivo
-            this.previewImg.src = this.base64;
-            this.previewImg.classList.remove("d-none");
-            this.video.classList.add("d-none");
-            this.btnCapturar.classList.add("d-none");
-            this.btnRepetir.classList.remove("d-none");
+            if (this.base64) {
+                this._mostrarVistaPrevia(this.base64);
+            }
         }, "image/jpeg", 0.85);
     }
 
     async repetirFoto() {
+        this.inputFallback.value = "";
         this.archivo = null;
         this.base64 = null;
-        await this.iniciarCamara();
+        this.previewImg.src = "";
+        this.previewImg.classList.add("d-none");
+
+        if (this.autoIniciar) {
+            await this.iniciarCamara();
+        } else {
+            this.btnRepetir.classList.add("d-none");
+        }
     }
 
     detenerCamara() {
