@@ -76,13 +76,17 @@ export class InputArchivo extends Componente {
         this.btnCapturar.type = "button";
         this.btnCapturar.className = "btn btn-primary fw-bold px-4";
         this.btnCapturar.textContent = "📸 Capturar foto";
-        this.btnCapturar.addEventListener("click", () => this.capturarFoto());
+        this.btnCapturar.addEventListener("click", async () => {
+            await this.capturarFoto();
+        });
 
         this.btnRepetir = document.createElement("button");
         this.btnRepetir.type = "button";
         this.btnRepetir.className = "btn btn-outline-secondary d-none";
         this.btnRepetir.textContent = "🔄 Tomar otra";
-        this.btnRepetir.addEventListener("click", () => this.repetirFoto());
+        this.btnRepetir.addEventListener("click", async () => {
+            await this.repetirFoto();
+        });
 
         this.btnArchivo = document.createElement("button");
         this.btnArchivo.type = "button";
@@ -105,6 +109,12 @@ export class InputArchivo extends Componente {
         this.video.classList.add("d-none");
         this.btnCapturar.classList.add("d-none");
         this.btnRepetir.classList.remove("d-none");
+    }
+
+    _canvasToBlobPromesa(tipo = "image/jpeg", calidad = 0.85) {
+        return new Promise((resolve) => {
+            this.canvas.toBlob((blob) => resolve(blob || null), tipo, calidad);
+        });
     }
 
     async iniciarCamara() {
@@ -140,9 +150,10 @@ export class InputArchivo extends Componente {
         }
     }
 
-    capturarFoto() {
-        if (!this.video || !this.video.videoWidth || !this.video.videoHeight) {
-            return;
+    async capturarFoto() {
+        if (!this.video || this.video.readyState < 2 || !this.video.videoWidth || !this.video.videoHeight) {
+            console.warn("capturarFoto: la cámara aún no tiene un fotograma listo.");
+            return null;
         }
 
         this.canvas.width = this.video.videoWidth;
@@ -151,21 +162,25 @@ export class InputArchivo extends Componente {
         const ctx = this.canvas.getContext("2d");
         ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
 
-        this.canvas.toBlob(async (blob) => {
-            if (!blob) return;
+        const blob = await this._canvasToBlobPromesa("image/jpeg", 0.85);
+        if (!blob) {
+            console.error("capturarFoto: no se pudo generar el Blob desde el canvas.");
+            return null;
+        }
 
-            const archivoCapturado = new File(
-                [blob],
-                `comprobante_${Date.now()}.jpg`,
-                { type: "image/jpeg" }
-            );
+        const archivoCapturado = new File(
+            [blob],
+            `comprobante_${Date.now()}.jpg`,
+            { type: "image/jpeg" }
+        );
 
-            await this._procesarBlobOArchivo(archivoCapturado);
+        await this._procesarBlobOArchivo(archivoCapturado);
 
-            if (this.base64) {
-                this._mostrarVistaPrevia(this.base64);
-            }
-        }, "image/jpeg", 0.85);
+        if (this.base64) {
+            this._mostrarVistaPrevia(this.base64);
+        }
+
+        return this.base64;
     }
 
     async repetirFoto() {
