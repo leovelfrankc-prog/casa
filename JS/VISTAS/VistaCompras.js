@@ -48,12 +48,11 @@ export class VistaCompras extends Vista {
             className: "form-control",
             obligatorio: true
         });
-
         this.inputFecha.establecerValor(new Date().toISOString().split("T")[0]);
 
         colFecha.agregar(labelFecha).agregar(this.inputFecha);
 
-        // ===== CÁMARA / ARCHIVO =====
+        // ===== GALERÍA / CÁMARA =====
         const colArchivo = new Contenedor("div", {
             className: "mb-4"
         });
@@ -128,37 +127,6 @@ export class VistaCompras extends Vista {
         }
     }
 
-    /**
-     * Obtiene el contenido en Base64 desde InputArchivo (o leyendo el File si hace falta).
-     */
-    async obtenerImagenBase64() {
-        if (!this.inputArchivo) return "";
-
-        if (typeof this.inputArchivo.obtenerBase64 === "function") {
-            const actual = this.inputArchivo.obtenerBase64();
-            if (actual) return actual;
-        }
-
-        const archivo =
-            (typeof this.inputArchivo.obtenerArchivo === "function" &&
-                this.inputArchivo.obtenerArchivo()) ||
-            this.inputArchivo.elemento?.files?.[0] ||
-            null;
-
-        if (!archivo) return "";
-
-        return await new Promise((resolve, reject) => {
-            const lector = new FileReader();
-            lector.onload = () => resolve(String(lector.result || ""));
-            lector.onerror = () => reject(new Error("No se pudo convertir la imagen a Base64."));
-            lector.readAsDataURL(archivo);
-        });
-    }
-
-    /**
-     * Normaliza la respuesta JSON que devuelva el backend/IA a un arreglo de ítems
-     * { producto, cantidad, precio, importe }.
-     */
     normalizarItemsFactura(respuesta) {
         let data = respuesta;
 
@@ -193,7 +161,9 @@ export class VistaCompras extends Vista {
                     : cantidad * precio;
 
             return {
-                producto: String(item.producto ?? item.nombre ?? item.descripcion ?? "").trim(),
+                producto: String(
+                    item.producto ?? item.nombre ?? item.descripcion ?? ""
+                ).trim(),
                 cantidad,
                 precio,
                 importe: Math.round(importeCalculado * 100) / 100
@@ -202,30 +172,16 @@ export class VistaCompras extends Vista {
     }
 
     async analizarTicket() {
-        const fechaCompra = this.inputFecha.obtenerValor
-            ? this.inputFecha.obtenerValor()
-            : this.inputFecha.elemento.value;
-
-        const nombreArchivo =
-            typeof this.inputArchivo.obtenerNombre === "function"
-                ? this.inputArchivo.obtenerNombre()
-                : this.inputArchivo.elemento?.files?.[0]?.name || "ticket.jpg";
-
-        let imagenBase64 = "";
-        try {
-            imagenBase64 = await this.obtenerImagenBase64();
-        } catch (err) {
-            alert(err.message);
-            return;
-        }
+        const imagenBase64 = this.inputArchivo.obtenerBase64();
+        const fechaCompra = this.inputFecha.obtenerValor();
 
         if (!imagenBase64) {
-            alert("Captura una foto del ticket o selecciona un archivo antes de analizar.");
+            alert("Captura una foto o selecciona una imagen de la galería antes de analizar.");
             return;
         }
 
         if (!window.motor || typeof window.motor.enviarAccion !== "function") {
-            alert("No se encontró window.motor.enviarAccion para comunicarse con el backend.");
+            alert("No se encontró window.motor.enviarAccion.");
             return;
         }
 
@@ -240,14 +196,14 @@ export class VistaCompras extends Vista {
         try {
             const respuestaIA = await window.motor.enviarAccion("analizarTicket", {
                 fecha: fechaCompra,
-                nombreArchivo,
+                nombreArchivo: this.inputArchivo.obtenerNombre(),
                 imagenBase64
             });
 
             this.datosTicket = this.normalizarItemsFactura(respuestaIA);
 
             if (!this.datosTicket.length) {
-                alert("La IA no devolvió productos en el ticket. Revisa la imagen o inténtalo de nuevo.");
+                alert("La IA no devolvió productos en el ticket.");
                 return;
             }
 
@@ -329,10 +285,7 @@ export class VistaCompras extends Vista {
             return;
         }
 
-        const fechaCompra = this.inputFecha.obtenerValor
-            ? this.inputFecha.obtenerValor()
-            : this.inputFecha.elemento.value;
-
+        const fechaCompra = this.inputFecha.obtenerValor();
         const totalCalculado =
             Math.round(
                 this.datosTicket.reduce((acc, item) => acc + (Number(item.importe) || 0), 0) * 100
