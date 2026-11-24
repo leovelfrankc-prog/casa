@@ -44,13 +44,14 @@ export class VistaCompras extends Vista {
         labelFecha.elemento.className = "form-label fw-bold";
         labelFecha.elemento.textContent = "Fecha";
 
-        this.inputFecha = new InputFecha({
+        const fechaInstancia = new InputFecha({
             className: "form-control",
             obligatorio: true
         });
-        this.inputFecha.establecerValor(new Date().toISOString().split("T")[0]);
+        fechaInstancia.establecerValor(new Date().toISOString().split("T")[0]);
+        this.inputFecha = fechaInstancia;
 
-        colFecha.agregar(labelFecha).agregar(this.inputFecha);
+        colFecha.agregar(labelFecha).agregar(fechaInstancia);
 
         // ===== GALERÍA / CÁMARA =====
         const colArchivo = new Contenedor("div", {
@@ -61,13 +62,14 @@ export class VistaCompras extends Vista {
         labelArchivo.elemento.className = "form-label fw-bold";
         labelArchivo.elemento.textContent = "Comprobante / Ticket";
 
-        this.inputArchivo = new InputArchivo({
+        const archivoInstancia = new InputArchivo({
             obligatorio: true,
             autoIniciar: true,
             facingMode: "environment"
         });
+        this.inputArchivo = archivoInstancia;
 
-        colArchivo.agregar(labelArchivo).agregar(this.inputArchivo);
+        colArchivo.agregar(labelArchivo).agregar(archivoInstancia);
 
         // ===== BOTÓN =====
         this.btnAnalizar = new Boton({
@@ -88,6 +90,57 @@ export class VistaCompras extends Vista {
         this.agregar(card);
 
         this.crearModalConTabla();
+    }
+
+    obtenerFechaCompra() {
+        if (this.inputFecha && typeof this.inputFecha.obtenerValor === "function") {
+            const val = this.inputFecha.obtenerValor();
+            if (val) return val;
+        }
+        const inputDateEl = this.elemento?.querySelector?.('input[type="date"]');
+        return inputDateEl?.value || new Date().toISOString().split("T")[0];
+    }
+
+    async obtenerImagenBase64() {
+        if (this.inputArchivo && typeof this.inputArchivo.obtenerBase64 === "function") {
+            const b64 = this.inputArchivo.obtenerBase64();
+            if (b64) return b64;
+        }
+
+        const inputFileEl =
+            this.inputArchivo?.inputFallback ||
+            this.elemento?.querySelector?.('input[type="file"]') ||
+            null;
+
+        const archivo =
+            (this.inputArchivo && typeof this.inputArchivo.obtenerArchivo === "function"
+                ? this.inputArchivo.obtenerArchivo()
+                : null) ||
+            inputFileEl?.files?.[0] ||
+            null;
+
+        if (!archivo) return "";
+
+        return await new Promise((resolve, reject) => {
+            const lector = new FileReader();
+            lector.onload = () => resolve(String(lector.result || ""));
+            lector.onerror = () =>
+                reject(new Error("No se pudo convertir el archivo a Base64."));
+            lector.readAsDataURL(archivo);
+        });
+    }
+
+    obtenerNombreArchivo() {
+        if (this.inputArchivo && typeof this.inputArchivo.obtenerNombre === "function") {
+            const nombre = this.inputArchivo.obtenerNombre();
+            if (nombre) return nombre;
+        }
+        const inputFileEl =
+            this.inputArchivo?.inputFallback ||
+            this.elemento?.querySelector?.('input[type="file"]') ||
+            null;
+
+        return inputFileEl?.files?.[0]?.name || "ticket.jpg";
     }
 
     crearModalConTabla() {
@@ -172,16 +225,24 @@ export class VistaCompras extends Vista {
     }
 
     async analizarTicket() {
-        const imagenBase64 = this.inputArchivo.obtenerBase64();
-        const fechaCompra = this.inputFecha.obtenerValor();
+        const fechaCompra = this.obtenerFechaCompra();
+        const nombreArchivo = this.obtenerNombreArchivo();
+
+        let imagenBase64 = "";
+        try {
+            imagenBase64 = await this.obtenerImagenBase64();
+        } catch (err) {
+            alert(err.message);
+            return;
+        }
 
         if (!imagenBase64) {
-            alert("Captura una foto o selecciona una imagen de la galería antes de analizar.");
+            alert("Captura una foto o selecciona una imagen antes de analizar.");
             return;
         }
 
         if (!window.motor || typeof window.motor.enviarAccion !== "function") {
-            alert("No se encontró window.motor.enviarAccion.");
+            alert("No se encontró window.motor.enviarAccion para consultar al backend.");
             return;
         }
 
@@ -191,12 +252,12 @@ export class VistaCompras extends Vista {
 
         const textoOriginalBtn = this.btnAnalizar.elemento.textContent;
         this.btnAnalizar.elemento.disabled = true;
-        this.btnAnalizar.elemento.textContent = "⏳ Analizando con IA...";
+        this.btnAnalizar.elemento.textContent = "⏳ Consultando IA...";
 
         try {
             const respuestaIA = await window.motor.enviarAccion("analizarTicket", {
                 fecha: fechaCompra,
-                nombreArchivo: this.inputArchivo.obtenerNombre(),
+                nombreArchivo,
                 imagenBase64
             });
 
@@ -210,7 +271,7 @@ export class VistaCompras extends Vista {
             this.poblarTabla();
             this.modal.abrir();
         } catch (error) {
-            console.error("Error al analizar ticket:", error);
+            console.error("Error al consultar IA para analizar ticket:", error);
             alert(`Error al analizar el ticket: ${error.message || error}`);
         } finally {
             this.btnAnalizar.elemento.disabled = false;
@@ -285,7 +346,7 @@ export class VistaCompras extends Vista {
             return;
         }
 
-        const fechaCompra = this.inputFecha.obtenerValor();
+        const fechaCompra = this.obtenerFechaCompra();
         const totalCalculado =
             Math.round(
                 this.datosTicket.reduce((acc, item) => acc + (Number(item.importe) || 0), 0) * 100
@@ -307,7 +368,9 @@ export class VistaCompras extends Vista {
             alert("Gastos guardados correctamente.");
             this.datosTicket = [];
             this.metadatosFactura = {};
-            this.inputArchivo.limpiar();
+            if (this.inputArchivo && typeof this.inputArchivo.limpiar === "function") {
+                this.inputArchivo.limpiar();
+            }
             this.modal.cerrar();
         } catch (error) {
             console.error("Error al guardar gastos:", error);
@@ -316,9 +379,8 @@ export class VistaCompras extends Vista {
     }
 
     destruir() {
-        if (this.inputArchivo) {
+        if (this.inputArchivo && typeof this.inputArchivo.destruir === "function") {
             this.inputArchivo.destruir();
-            this.inputArchivo = null;
         }
         return super.destruir();
     }
